@@ -1,0 +1,5 @@
+{
+  "name": "Chat Ment Helper",
+  "description": "A dark-themed chat snippet management tool. Organize text templates by category, edit them easily, and click to copy.",
+  "requestFramePermissions": []
+}
