@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Category, Snippet, ToastState, User } from './types';
-import { CopyIcon, EditIcon, TrashIcon, PlusIcon, FolderIcon, CheckIcon, UserIcon, LogOutIcon } from './components/Icons';
+import { CopyIcon, EditIcon, TrashIcon, PlusIcon, FolderIcon, CheckIcon, UserIcon, LogOutIcon, MenuIcon } from './components/Icons';
 import { Modal } from './components/Modal';
 import { Auth } from './components/Auth';
 
@@ -51,6 +51,7 @@ const App: React.FC = () => {
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
   const [isSnippetModalOpen, setIsSnippetModalOpen] = useState(false);
   const [snippetForm, setSnippetForm] = useState<{label: string, content: string}>({ label: '', content: '' });
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Toast State
   const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'info' });
@@ -288,8 +289,19 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm md:hidden animate-fade-in"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar - Categories */}
-      <aside className="w-72 bg-slate-950/50 border-r border-slate-800 flex flex-col flex-shrink-0">
+      <aside className={`
+        fixed inset-y-0 left-0 z-40 w-72 bg-slate-950/95 backdrop-blur-xl md:backdrop-blur-none md:bg-slate-950/50 border-r border-slate-800 flex flex-col flex-shrink-0 transition-transform duration-300 ease-in-out
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:relative'}
+      `}>
         <div className="p-6">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-brand to-cyan-400 bg-clip-text text-transparent mb-1">
             카테고리
@@ -301,7 +313,10 @@ const App: React.FC = () => {
           {categories.map(category => (
             <div 
               key={category.id} 
-              onClick={() => setSelectedCategoryId(category.id)}
+              onClick={() => {
+                setSelectedCategoryId(category.id);
+                setIsMobileMenuOpen(false);
+              }}
               className={`group flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-200 
                 ${selectedCategoryId === category.id 
                   ? 'bg-brand shadow-md shadow-brand/20 text-white' 
@@ -384,45 +399,62 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col bg-slate-900 overflow-hidden relative">
         
         {/* Header */}
-        <header className="px-8 py-6 border-b border-slate-800 bg-slate-900 flex justify-between items-end">
-          <div>
-            <h2 className="text-3xl font-bold text-white mb-2">
-              {activeCategory ? activeCategory.name : '카테고리를 선택하세요'}
-            </h2>
-            <p className="text-slate-400 text-sm">
+        <header className="px-4 md:px-8 py-6 border-b border-slate-800 bg-slate-900 flex justify-between items-end">
+          <div className="flex items-start md:items-end flex-col md:flex-row gap-2 md:gap-0 w-full md:w-auto">
+            <div className="flex items-center">
+              {/* Mobile Menu Button */}
+              <button 
+                className="mr-3 md:hidden p-2 -ml-2 text-slate-400 hover:text-white rounded-lg active:bg-slate-800"
+                onClick={() => setIsMobileMenuOpen(true)}
+              >
+                <MenuIcon className="w-6 h-6" />
+              </button>
+              
+              <h2 className="text-2xl md:text-3xl font-bold text-white leading-tight">
+                {activeCategory ? activeCategory.name : '카테고리를 선택하세요'}
+              </h2>
+            </div>
+            <p className="text-slate-400 text-sm md:ml-4 pb-1 hidden md:block">
               자주 사용하는 멘트를 저장하고 클릭 한 번으로 복사하세요.
             </p>
           </div>
+          
           {activeCategory && (
             <button 
               onClick={openAddSnippetModal}
-              className="flex items-center space-x-2 bg-brand hover:bg-brand-dark text-white px-5 py-2.5 rounded-lg transition-all shadow-lg shadow-brand/30 hover:shadow-brand/50 font-medium"
+              className="flex-shrink-0 flex items-center space-x-2 bg-brand hover:bg-brand-dark text-white px-3 py-2 md:px-5 md:py-2.5 rounded-lg transition-all shadow-lg shadow-brand/30 hover:shadow-brand/50 font-medium text-sm md:text-base ml-2"
             >
               <PlusIcon className="w-5 h-5" />
-              <span>멘트 추가</span>
+              <span className="hidden md:inline">멘트 추가</span>
+              <span className="md:hidden">추가</span>
             </button>
           )}
         </header>
 
         {/* Snippet Grid */}
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8">
           {activeCategory ? (
             activeSnippets.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                 {activeSnippets.map(snippet => (
                   <div 
                     key={snippet.id} 
                     className="group relative flex flex-col bg-slate-800 hover:bg-slate-700/80 border border-slate-700 hover:border-brand/50 rounded-xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 overflow-hidden"
                   >
                     {/* Card Header (Label) */}
-                    <div className="px-5 py-3 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/50">
+                    <div className="px-4 py-3 md:px-5 md:py-3 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/50">
                       <div className="flex items-center space-x-2">
                         <span className={`w-2 h-2 rounded-full ${['bg-green-400', 'bg-blue-400', 'bg-purple-400', 'bg-pink-400'][snippet.label.length % 4]}`}></span>
                         <span className="text-sm font-semibold text-slate-300 tracking-wide">{snippet.label}</span>
                       </div>
                       
-                      {/* Action Buttons (Visible on Hover) */}
-                      <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      {/* Action Buttons (Visible on Hover in Desktop, Always on Mobile if needed, but let's stick to hover/focus or better mobile UX) */}
+                      {/* On mobile hover is tricky, so we rely on tap or the buttons being somewhat visible or the card itself. 
+                          For simplicity, we keep the opacity transition but on mobile tapping empty space might not trigger hover easily.
+                          Let's make them always visible on touch devices or simply keep the logic as is since modern mobile browsers handle hover on tap often.
+                          Alternatively, we can show them always on small screens.
+                       */}
+                      <div className="flex items-center space-x-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
                          <button 
                           onClick={(e) => handleDuplicateSnippet(snippet, e)}
                           className="p-1.5 text-slate-400 hover:text-brand hover:bg-brand/10 rounded-md transition-colors"
@@ -450,7 +482,7 @@ const App: React.FC = () => {
                     {/* Card Body (Content) - Click to Copy */}
                     <div 
                       onClick={() => copyToClipboard(snippet.content)}
-                      className="p-5 flex-1 cursor-pointer"
+                      className="p-4 md:p-5 flex-1 cursor-pointer"
                       title="클릭하여 복사"
                     >
                       <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-light">
@@ -473,8 +505,9 @@ const App: React.FC = () => {
               </div>
             )
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-slate-500">
-               <p className="text-lg">왼쪽 목록에서 카테고리를 선택하세요.</p>
+            <div className="h-full flex flex-col items-center justify-center text-slate-500 text-center px-4">
+               <p className="text-lg mb-2">선택된 카테고리가 없습니다.</p>
+               <p className="text-sm md:hidden">좌측 상단 메뉴 버튼을 눌러 카테고리를 선택하세요.</p>
             </div>
           )}
         </div>
