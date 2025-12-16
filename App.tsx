@@ -447,7 +447,7 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 md:p-8">
           {activeCategory ? (
             activeSnippets.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 items-start">
                 {activeSnippets.map(snippet => {
                   const isExpanded = expandedSnippets.has(snippet.id);
                   const isLongContent = snippet.content.length > 200 || snippet.content.split('\n').length > 5;
