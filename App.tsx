@@ -52,6 +52,7 @@ const App: React.FC = () => {
   const [isSnippetModalOpen, setIsSnippetModalOpen] = useState(false);
   const [snippetForm, setSnippetForm] = useState<{label: string, content: string}>({ label: '', content: '' });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [expandedSnippets, setExpandedSnippets] = useState<Set<string>>(new Set());
   
   // Toast State
   const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'info' });
@@ -254,6 +255,17 @@ const App: React.FC = () => {
     showToast('멘트가 복제되었습니다.');
   };
 
+  const toggleSnippetExpansion = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newSet = new Set(expandedSnippets);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setExpandedSnippets(newSet);
+  };
+
   // --- Render ---
 
   // 1. If not logged in, show Auth Screen
@@ -436,7 +448,11 @@ const App: React.FC = () => {
           {activeCategory ? (
             activeSnippets.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-                {activeSnippets.map(snippet => (
+                {activeSnippets.map(snippet => {
+                  const isExpanded = expandedSnippets.has(snippet.id);
+                  const isLongContent = snippet.content.length > 200 || snippet.content.split('\n').length > 5;
+
+                  return (
                   <div 
                     key={snippet.id} 
                     className="group relative flex flex-col bg-slate-800 hover:bg-slate-700/80 border border-slate-700 hover:border-brand/50 rounded-xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 overflow-hidden"
@@ -448,12 +464,6 @@ const App: React.FC = () => {
                         <span className="text-sm font-semibold text-slate-300 tracking-wide">{snippet.label}</span>
                       </div>
                       
-                      {/* Action Buttons (Visible on Hover in Desktop, Always on Mobile if needed, but let's stick to hover/focus or better mobile UX) */}
-                      {/* On mobile hover is tricky, so we rely on tap or the buttons being somewhat visible or the card itself. 
-                          For simplicity, we keep the opacity transition but on mobile tapping empty space might not trigger hover easily.
-                          Let's make them always visible on touch devices or simply keep the logic as is since modern mobile browsers handle hover on tap often.
-                          Alternatively, we can show them always on small screens.
-                       */}
                       <div className="flex items-center space-x-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
                          <button 
                           onClick={(e) => handleDuplicateSnippet(snippet, e)}
@@ -482,18 +492,32 @@ const App: React.FC = () => {
                     {/* Card Body (Content) - Click to Copy */}
                     <div 
                       onClick={() => copyToClipboard(snippet.content)}
-                      className="p-4 md:p-5 flex-1 cursor-pointer"
+                      className="p-4 md:p-5 flex-1 cursor-pointer flex flex-col"
                       title="클릭하여 복사"
                     >
-                      <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-light">
+                      <div className={`text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-light ${isExpanded ? '' : 'line-clamp-5'}`}>
                         {snippet.content}
-                      </p>
-                      <div className="mt-4 flex items-center text-brand text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0 duration-300">
+                      </div>
+                      
+                      {/* Read More Button */}
+                      {isLongContent && (
+                        <div className="mt-2">
+                           <button
+                             onClick={(e) => toggleSnippetExpansion(snippet.id, e)}
+                             className="text-brand text-xs font-medium hover:underline focus:outline-none flex items-center"
+                           >
+                             {isExpanded ? '접기' : '더보기...'}
+                           </button>
+                        </div>
+                      )}
+
+                      <div className="mt-4 flex items-center text-brand text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0 duration-300 mt-auto pt-2">
                         <CopyIcon className="w-3 h-3 mr-1" /> 클릭하여 복사하기
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-slate-500 opacity-60">
