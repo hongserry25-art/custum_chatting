@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Category, Snippet, ToastState, User } from './types';
-import { CopyIcon, EditIcon, TrashIcon, PlusIcon, FolderIcon, CheckIcon, UserIcon, LogOutIcon, MenuIcon } from './components/Icons';
+import { CopyIcon, EditIcon, TrashIcon, PlusIcon, FolderIcon, CheckIcon, UserIcon, LogOutIcon, MenuIcon, ExternalLinkIcon } from './components/Icons';
 import { Modal } from './components/Modal';
 import { Auth } from './components/Auth';
 
@@ -369,6 +369,29 @@ const App: React.FC = () => {
         </div>
 
         <div className="p-4 border-t border-slate-800 bg-slate-900/50">
+          
+          {/* External Link Section */}
+          <div className="mb-4 pb-4 border-b border-slate-800 space-y-2">
+             <a 
+               href="https://care-book-one.vercel.app" 
+               target="_blank" 
+               rel="noopener noreferrer"
+               className="flex items-center justify-center space-x-2 w-full p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-brand hover:text-brand-dark transition-all border border-slate-700 hover:border-brand/30 shadow-sm group"
+             >
+               <span className="font-semibold text-sm">사주이론</span>
+               <ExternalLinkIcon className="w-4 h-4 opacity-70 group-hover:opacity-100" />
+             </a>
+             <a 
+               href="https://pro.forceteller.com/profile/edit" 
+               target="_blank" 
+               rel="noopener noreferrer"
+               className="flex items-center justify-center space-x-2 w-full p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-brand hover:text-brand-dark transition-all border border-slate-700 hover:border-brand/30 shadow-sm group"
+             >
+               <span className="font-semibold text-sm">포스텔러 만세력</span>
+               <ExternalLinkIcon className="w-4 h-4 opacity-70 group-hover:opacity-100" />
+             </a>
+          </div>
+
           <form onSubmit={handleAddCategory} className="flex space-x-2 mb-4">
             <input
               type="text"
