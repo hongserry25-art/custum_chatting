@@ -36,6 +36,15 @@ const DEFAULT_SNIPPETS: Snippet[] = [
   },
 ];
 
+const EXTERNAL_LINKS = [
+  { name: '사주이론', url: 'https://care-book-one.vercel.app' },
+  { name: '포스텔러 만세력', url: 'https://pro.forceteller.com/profile/edit' },
+  { name: '사주비즈랩', url: 'https://www.sajulab.kr' },
+  { name: '만능답변기', url: 'https://chatgpt.com/g/g-693357ce305c8191b397c43d47f4af64-karaban-manneung-jilmundabbyeongi' },
+  { name: '만능궁합', url: 'https://chatgpt.com/g/g-6933589e04e88191aabeeaba96aff9ce-karaban-wanbyeog-gunghabbunseoggi' },
+  { name: '친절모드', url: 'https://chatgpt.com/g/g-6934093e3694819199b17174399a85de-cinjeolmodeuro-dabbyeon' },
+];
+
 const App: React.FC = () => {
   // --- Auth State ---
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -370,26 +379,20 @@ const App: React.FC = () => {
 
         <div className="p-4 border-t border-slate-800 bg-slate-900/50">
           
-          {/* External Link Section */}
-          <div className="mb-4 pb-4 border-b border-slate-800 space-y-2">
-             <a 
-               href="https://care-book-one.vercel.app" 
-               target="_blank" 
-               rel="noopener noreferrer"
-               className="flex items-center justify-center space-x-2 w-full p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-brand hover:text-brand-dark transition-all border border-slate-700 hover:border-brand/30 shadow-sm group"
-             >
-               <span className="font-semibold text-sm">사주이론</span>
-               <ExternalLinkIcon className="w-4 h-4 opacity-70 group-hover:opacity-100" />
-             </a>
-             <a 
-               href="https://pro.forceteller.com/profile/edit" 
-               target="_blank" 
-               rel="noopener noreferrer"
-               className="flex items-center justify-center space-x-2 w-full p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-brand hover:text-brand-dark transition-all border border-slate-700 hover:border-brand/30 shadow-sm group"
-             >
-               <span className="font-semibold text-sm">포스텔러 만세력</span>
-               <ExternalLinkIcon className="w-4 h-4 opacity-70 group-hover:opacity-100" />
-             </a>
+          {/* External Links Section */}
+          <div className="mb-4 pb-4 border-b border-slate-800 space-y-2 max-h-48 overflow-y-auto">
+             {EXTERNAL_LINKS.map((link) => (
+                <a 
+                  key={link.name}
+                  href={link.url}
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center space-x-2 w-full p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-brand hover:text-brand-dark transition-all border border-slate-700 hover:border-brand/30 shadow-sm group"
+                >
+                  <span className="font-semibold text-sm">{link.name}</span>
+                  <ExternalLinkIcon className="w-4 h-4 opacity-70 group-hover:opacity-100" />
+                </a>
+             ))}
           </div>
 
           <form onSubmit={handleAddCategory} className="flex space-x-2 mb-4">
