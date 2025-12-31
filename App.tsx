@@ -15,9 +15,11 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const EXTERNAL_LINKS = [
-  { name: '사주이론', url: 'https://care-book-one.vercel.app' },
-  { name: '포스텔러 만세력', url: 'https://pro.forceteller.com/profile/edit' },
-  { name: '사주비즈랩', url: 'https://www.sajulab.kr' },
+  { name: '사주이론', url: 'https://care-book-one.vercel.app', type: 'web' },
+  { name: '포스텔러 만세력', url: 'https://pro.forceteller.com/profile/edit', type: 'web' },
+  { name: '사주비즈랩', url: 'https://www.sajulab.kr', type: 'web' },
+  { name: '만능질문답변기', url: 'https://chatgpt.com/g/g-693357ce305c8191b397c43d47f4af64-karaban-manneung-jilmundabbyeongi', type: 'gpt' },
+  { name: '완벽궁합분석기', url: 'https://chatgpt.com/g/g-6933589e04e88191aabeeaba96aff9ce-karaban-wanbyeog-gunghabbunseoggi', type: 'gpt' },
 ];
 
 const App: React.FC = () => {
@@ -305,15 +307,20 @@ const App: React.FC = () => {
         </div>
 
         {/* Fixed Sections (Bottom) */}
-        <div className="border-t border-slate-900 bg-slate-950/80 backdrop-blur-md">
-          {/* Quick Links Section */}
-          <div className="p-4 space-y-1">
+        <div className="border-t border-slate-900 bg-slate-950/80 backdrop-blur-md overflow-hidden flex flex-col max-h-[50%]">
+          {/* Quick Links Section (Internal Scroll if many links) */}
+          <div className="p-4 space-y-1 overflow-y-auto custom-scrollbar flex-1">
             <label className="px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest block mb-2">Quick Links</label>
             {EXTERNAL_LINKS.map(link => (
               <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
-                 className="flex items-center space-x-3 p-3 rounded-xl text-slate-500 hover:bg-brand/10 hover:text-brand transition-all duration-300 group">
-                <ExternalLinkIcon className="w-4 h-4 text-slate-700 group-hover:text-brand" />
-                <span className="text-sm font-bold">{link.name}</span>
+                 className="flex items-center justify-between p-2.5 rounded-xl text-slate-500 hover:bg-brand/10 hover:text-brand transition-all duration-300 group">
+                <div className="flex items-center space-x-3 truncate">
+                  <ExternalLinkIcon className="w-4 h-4 text-slate-700 group-hover:text-brand flex-shrink-0" />
+                  <span className="text-sm font-bold truncate">{link.name}</span>
+                </div>
+                {link.type === 'gpt' && (
+                  <span className="text-[8px] font-black bg-brand/10 text-brand px-1.5 py-0.5 rounded uppercase flex-shrink-0">GPTs</span>
+                )}
               </a>
             ))}
           </div>
@@ -323,12 +330,12 @@ const App: React.FC = () => {
              <form onSubmit={handleAddCategory} className="flex space-x-2 mb-4">
                 <input type="text" placeholder="새 카테고리" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}
                   className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-brand" />
-                <button type="submit" className="p-2 bg-brand text-white rounded-lg"><PlusIcon className="w-4 h-4" /></button>
+                <button type="submit" className="p-2 bg-brand text-white rounded-lg transition-transform active:scale-90"><PlusIcon className="w-4 h-4" /></button>
              </form>
 
-             <div className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800">
+             <div className="flex items-center justify-between p-3 bg-slate-950 rounded-2xl border border-slate-800">
                <div className="flex items-center space-x-3 overflow-hidden">
-                 <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-brand font-black">
+                 <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-brand font-black flex-shrink-0">
                    {currentUser.email[0].toUpperCase()}
                  </div>
                  <div className="flex flex-col truncate">
@@ -336,7 +343,7 @@ const App: React.FC = () => {
                    <span className="text-[9px] text-slate-500">Cloud Synced</span>
                  </div>
                </div>
-               <button onClick={handleLogout} className="p-2 text-slate-600 hover:text-red-400 transition-all"><LogOutIcon className="w-4 h-4" /></button>
+               <button onClick={handleLogout} className="p-2 text-slate-600 hover:text-red-400 transition-all flex-shrink-0"><LogOutIcon className="w-4 h-4" /></button>
              </div>
           </div>
         </div>
@@ -355,9 +362,9 @@ const App: React.FC = () => {
             <div className="relative hidden md:block">
               <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <input type="text" placeholder="멘트 검색..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                className="bg-slate-800/50 border border-slate-700/50 rounded-2xl pl-12 pr-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-brand/40 outline-none w-64" />
+                className="bg-slate-800/50 border border-slate-700/50 rounded-2xl pl-12 pr-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-brand/40 outline-none w-64 transition-all" />
             </div>
-            <button onClick={() => { setEditingSnippet(null); setSnippetForm({label:'', content:''}); setIsSnippetModalOpen(true); }} className="px-6 py-2.5 bg-brand text-white rounded-xl shadow-lg shadow-brand/30 font-bold transform active:scale-95 transition-all">추가</button>
+            <button onClick={() => { setEditingSnippet(null); setSnippetForm({label:'', content:''}); setIsSnippetModalOpen(true); }} className="px-6 py-2.5 bg-brand text-white rounded-xl shadow-lg shadow-brand/30 font-bold transform active:scale-95 hover:bg-brand-dark transition-all">추가</button>
           </div>
         </header>
 
@@ -365,27 +372,29 @@ const App: React.FC = () => {
           {filteredSnippets.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {filteredSnippets.map(snip => (
-                <div key={snip.id} className="group relative bg-slate-800/40 hover:bg-slate-800 border border-slate-700/50 hover:border-brand/30 rounded-3xl p-6 transition-all duration-500">
+                <div key={snip.id} className="group relative bg-slate-800/40 hover:bg-slate-800 border border-slate-700/50 hover:border-brand/30 rounded-3xl p-6 transition-all duration-500 shadow-xl hover:shadow-brand/5">
                   <div className="flex justify-between items-start mb-4">
                     <span className="text-sm font-black text-slate-300">{snip.label}</span>
                     <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => { setEditingSnippet(snip); setSnippetForm({label:snip.label, content:snip.content}); setIsSnippetModalOpen(true); }} className="p-1.5 hover:text-brand"><EditIcon className="w-4 h-4" /></button>
-                      <button onClick={() => handleDeleteSnippet(snip.id)} className="p-1.5 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
+                      <button onClick={() => { setEditingSnippet(snip); setSnippetForm({label:snip.label, content:snip.content}); setIsSnippetModalOpen(true); }} className="p-1.5 hover:text-brand transition-colors"><EditIcon className="w-4 h-4" /></button>
+                      <button onClick={() => handleDeleteSnippet(snip.id)} className="p-1.5 hover:text-red-500 transition-colors"><TrashIcon className="w-4 h-4" /></button>
                     </div>
                   </div>
-                  <div onClick={() => copyToClipboard(snip.content)} className="cursor-pointer">
-                    <p className="text-slate-400 text-sm leading-relaxed line-clamp-4 mb-4 whitespace-pre-wrap">{snip.content}</p>
+                  <div onClick={() => copyToClipboard(snip.content)} className="cursor-pointer group/content">
+                    <p className="text-slate-400 text-sm leading-relaxed line-clamp-4 mb-4 whitespace-pre-wrap group-hover/content:text-slate-300 transition-colors">{snip.content}</p>
                     <div className="flex items-center justify-between pt-3 border-t border-slate-700/30">
-                       <span className="text-[10px] font-black text-brand uppercase">Click to copy</span>
-                       <span className="text-[10px] text-slate-600">{snip.content.length}자</span>
-                       <CopyIcon className="w-4 h-4 text-brand ml-auto" />
+                       <div className="flex items-center space-x-2">
+                         <span className="text-[10px] font-black text-brand uppercase">Click to copy</span>
+                         <span className="text-[10px] text-slate-600 font-bold">{snip.content.length}자</span>
+                       </div>
+                       <CopyIcon className="w-4 h-4 text-brand ml-auto group-hover/content:scale-110 transition-transform" />
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center opacity-30">
+            <div className="h-full flex flex-col items-center justify-center opacity-30 select-none">
                <DatabaseIcon className="w-20 h-20 mb-4" />
                <p className="text-xl font-bold">비어있음</p>
                <p className="text-sm mt-2 text-center text-slate-400">카테고리를 선택하거나<br/>우측 상단 '추가' 버튼을 눌러보세요.</p>
@@ -399,16 +408,16 @@ const App: React.FC = () => {
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">Label</label>
             <input type="text" value={snippetForm.label} onChange={e => setSnippetForm({...snippetForm, label: e.target.value})} placeholder="예: 첫 인사"
-              className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-brand outline-none" />
+              className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-brand outline-none transition-all" />
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">Content</label>
             <textarea value={snippetForm.content} onChange={e => setSnippetForm({...snippetForm, content: e.target.value})} placeholder="메시지 내용..." rows={6}
-              className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-brand outline-none resize-none" />
+              className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-brand outline-none resize-none transition-all" />
           </div>
           <div className="flex justify-end space-x-4 pt-4">
-            <button onClick={() => setIsSnippetModalOpen(false)} className="px-8 font-bold text-slate-500">취소</button>
-            <button onClick={handleSnippetSave} className="px-12 py-4 bg-brand text-white font-black rounded-2xl shadow-xl shadow-brand/30">저장</button>
+            <button onClick={() => setIsSnippetModalOpen(false)} className="px-8 font-bold text-slate-500 hover:text-slate-300 transition-colors">취소</button>
+            <button onClick={handleSnippetSave} className="px-12 py-4 bg-brand text-white font-black rounded-2xl shadow-xl shadow-brand/30 hover:bg-brand-dark transition-all active:scale-95">저장</button>
           </div>
         </div>
       </Modal>
