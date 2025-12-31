@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Category, Snippet, ToastState, User } from './types';
-import { CopyIcon, EditIcon, TrashIcon, PlusIcon, FolderIcon, CheckIcon, UserIcon, LogOutIcon, MenuIcon, ExternalLinkIcon, SearchIcon, XIcon, DatabaseIcon, CloudIcon } from './components/Icons';
+import { CopyIcon, EditIcon, TrashIcon, PlusIcon, FolderIcon, CheckIcon, UserIcon, LogOutIcon, MenuIcon, ExternalLinkIcon, SearchIcon, XIcon, DatabaseIcon, CloudIcon, ChevronUpIcon, ChevronDownIcon } from './components/Icons';
 import { Modal } from './components/Modal';
 import { Auth } from './components/Auth';
 
@@ -191,6 +191,21 @@ const App: React.FC = () => {
     }
   };
 
+  const handleMoveCategory = (index: number, direction: 'up' | 'down', e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newCategories = [...categories];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+
+    if (targetIndex < 0 || targetIndex >= newCategories.length) return;
+
+    // Swap items in state
+    [newCategories[index], newCategories[targetIndex]] = [newCategories[targetIndex], newCategories[index]];
+    setCategories(newCategories);
+    showToast('순서가 변경되었습니다 (UI상 적용)');
+    
+    // Note: To persist this, you'd need a sort_order column in Supabase and update the DB here.
+  };
+
   const handleSnippetSave = async () => {
     if (!snippetForm.content.trim() || !currentUser || !selectedCategoryId) return;
     
@@ -288,16 +303,26 @@ const App: React.FC = () => {
                 <div className="w-6 h-6 border-2 border-brand/30 border-t-brand rounded-full animate-spin mx-auto"></div>
                 <p className="text-[10px] text-slate-500">데이터 로드 중...</p>
              </div>
-          ) : categories.length > 0 ? categories.map(cat => (
+          ) : categories.length > 0 ? categories.map((cat, index) => (
             <div key={cat.id} onClick={() => { setSelectedCategoryId(cat.id); setIsMobileMenuOpen(false); }}
               className={`group flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition-all duration-300 ${selectedCategoryId === cat.id ? 'bg-brand text-white shadow-xl shadow-brand/20' : 'text-slate-400 hover:bg-slate-800'}`}>
               <div className="flex items-center space-x-3 overflow-hidden">
-                <FolderIcon className={`w-4 h-4 ${selectedCategoryId === cat.id ? 'text-white' : 'text-slate-600'}`} />
+                <FolderIcon className={`w-4 h-4 flex-shrink-0 ${selectedCategoryId === cat.id ? 'text-white' : 'text-slate-600'}`} />
                 <span className="text-sm font-bold truncate">{cat.name}</span>
               </div>
-              <button onClick={(e) => handleDeleteCategory(cat.id, e)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/10 rounded transition-opacity">
-                <TrashIcon className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex flex-col mr-1">
+                  <button onClick={(e) => handleMoveCategory(index, 'up', e)} disabled={index === 0} className="p-0.5 hover:bg-black/10 rounded disabled:opacity-20">
+                    <ChevronUpIcon className="w-3 h-3" />
+                  </button>
+                  <button onClick={(e) => handleMoveCategory(index, 'down', e)} disabled={index === categories.length - 1} className="p-0.5 hover:bg-black/10 rounded disabled:opacity-20">
+                    <ChevronDownIcon className="w-3 h-3" />
+                  </button>
+                </div>
+                <button onClick={(e) => handleDeleteCategory(cat.id, e)} className="p-1 hover:bg-black/10 rounded">
+                  <TrashIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           )) : (
             <div className="p-4 text-center">
