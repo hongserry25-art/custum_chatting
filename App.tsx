@@ -7,19 +7,12 @@ import { Modal } from './components/Modal';
 import { Auth } from './components/Auth';
 
 // ========================================================
-// [중요] 여기에 Supabase 대시보드에서 복사한 값을 넣으세요!
+// [확인됨] 사용자님이 제공해주신 최신 키를 적용했습니다.
 // ========================================================
 const SUPABASE_URL = 'https://ewujgwcfpzvgutuitksk.supabase.co'; 
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dWpnd2NmcHp2Z3V0dWl0a3NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxNDAzMzQsImV4cCI6MjA4MjcxNjMzNH0.y5X4ORyaV27n3w7Q-xb0zdVRNxZ7AYQCy5aR5WMTZ1s'; // <- 여기에 'eyJ...'로 시작하는 긴 키를 붙여넣으세요!
-// ========================================================
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dWpnd2NmcHp2Z3V0dWl0a3NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxNDAzMzQsImV4cCI6MjA4MjcxNjMzNH0.y5X4ORyaV27n3w7Q-xb0zdVRNxZ7AYQCy5aR5WMTZ1s';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-const EXTERNAL_LINKS = [
-  { name: '사주이론', url: 'https://care-book-one.vercel.app' },
-  { name: '포스텔러 만세력', url: 'https://pro.forceteller.com/profile/edit' },
-  { name: '사주비즈랩', url: 'https://www.sajulab.kr' },
-];
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -46,12 +39,15 @@ const App: React.FC = () => {
 
   // --- Auth Session Check ---
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setCurrentUser({ id: session.user.id, email: session.user.email || '' });
       }
       setIsAuthChecking(false);
-    });
+    };
+
+    checkSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
@@ -94,7 +90,7 @@ const App: React.FC = () => {
           if (snipError) throw snipError;
           setSnippets(snips || []);
         } else {
-          // 초기 카테고리 생성 시도
+          // 초기 카테고리 자동 생성
           const initialNames = ['초기안내', '상담진행', '입금안내', '마무리'];
           const { data: newCats, error: createError } = await supabase
             .from('categories')
@@ -118,7 +114,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (toast.show) {
-      const timer = setTimeout(() => setToast({ ...toast, show: false }), 2000);
+      const timer = setTimeout(() => setToast({ ...toast, show: false }), 3000);
       return () => clearTimeout(timer);
     }
   }, [toast]);
@@ -161,7 +157,7 @@ const App: React.FC = () => {
       .single();
 
     if (error) {
-      showToast('저장 실패: 테이블 구성을 확인하세요.', 'error');
+      showToast('저장 실패: 테이블이 생성되었는지 확인하세요.', 'error');
     } else {
       setCategories([...categories, data]);
       setNewCategoryName('');
@@ -251,7 +247,7 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
       {toast.show && (
-        <div className={`fixed top-6 right-6 z-[100] px-5 py-3 rounded-xl shadow-2xl animate-fade-in flex items-center space-x-3 border border-white/10 ${toast.type === 'success' ? 'bg-brand' : 'bg-slate-800'}`}>
+        <div className={`fixed top-6 right-6 z-[100] px-5 py-3 rounded-xl shadow-2xl animate-fade-in flex items-center space-x-3 border border-white/10 ${toast.type === 'success' ? 'bg-brand' : toast.type === 'error' ? 'bg-red-500' : 'bg-slate-800'}`}>
           <CheckIcon className="w-5 h-5" />
           <span className="font-bold text-sm">{toast.message}</span>
         </div>
@@ -290,7 +286,7 @@ const App: React.FC = () => {
             </div>
           )) : (
             <div className="p-4 text-center">
-              <p className="text-xs text-slate-600">카테고리가 없습니다.</p>
+              <p className="text-xs text-slate-600">SQL 테이블을 먼저 생성해주세요.</p>
             </div>
           )}
         </div>
@@ -362,7 +358,7 @@ const App: React.FC = () => {
             <div className="h-full flex flex-col items-center justify-center opacity-30">
                <DatabaseIcon className="w-20 h-20 mb-4" />
                <p className="text-xl font-bold">비어있음</p>
-               <p className="text-sm mt-2 text-center">카테고리를 선택하거나<br/>우측 상단 '추가' 버튼을 눌러보세요.</p>
+               <p className="text-sm mt-2 text-center text-slate-400">카테고리를 선택하거나<br/>우측 상단 '추가' 버튼을 눌러보세요.</p>
             </div>
           )}
         </div>

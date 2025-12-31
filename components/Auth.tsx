@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { MailIcon, LockIcon, UserIcon, CheckIcon } from './Icons';
@@ -19,16 +20,35 @@ export const Auth: React.FC<AuthProps> = ({ supabase, showToast }) => {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         showToast('로그인 성공!');
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ 
+          email, 
+          password,
+        });
+        
         if (error) throw error;
-        showToast('회원가입 성공! 이메일을 확인하거나 로그인하세요.');
+
+        if (data.user && data.session) {
+           showToast('회원가입 완료! 자동으로 로그인되었습니다.');
+        } else {
+           // 이 에러가 뜨면 Dashboard > Auth > Sign In / Providers > Email > Confirm email 을 꺼야 합니다.
+           showToast('가입은 되었으나 이메일 인증이 필요합니다. Supabase 설정에서 "Confirm Email"을 꺼주세요!', 'info');
+        }
       }
     } catch (err: any) {
-      showToast(err.message || '인증 오류가 발생했습니다.', 'error');
+      console.error(err);
+      let errorMsg = err.message;
+      if (err.message === 'Email not confirmed') {
+        errorMsg = '이메일 인증이 필요합니다. [Sign In / Providers] 메뉴에서 Confirm Email을 꺼주세요!';
+      } else if (err.message === 'Invalid login credentials') {
+        errorMsg = '이메일 또는 비밀번호가 틀렸습니다.';
+      } else if (err.message.includes('rate limit')) {
+        errorMsg = '너무 자주 시도했습니다. 잠시 후 다시 시도해주세요.';
+      }
+      showToast(errorMsg, 'error');
     } finally {
       setLoading(false);
     }
