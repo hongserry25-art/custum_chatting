@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Category, Snippet, ToastState, User } from './types';
@@ -5,10 +6,12 @@ import { CopyIcon, EditIcon, TrashIcon, PlusIcon, FolderIcon, CheckIcon, UserIco
 import { Modal } from './components/Modal';
 import { Auth } from './components/Auth';
 
-// --- Supabase Configuration ---
-// 주의: 여기에 본인의 슈퍼베이스 프로젝트 정보를 입력하세요.
-const SUPABASE_URL = 'https://your-project-url.supabase.co';
-const SUPABASE_KEY = 'your-anon-key';
+// ========================================================
+// [중요] 여기에 Supabase 대시보드에서 복사한 값을 넣으세요!
+// ========================================================
+const SUPABASE_URL = 'https://ewujgwcfpzvgutuitksk.supabase.co'; 
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dWpnd2NmcHp2Z3V0dWl0a3NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxNDAzMzQsImV4cCI6MjA4MjcxNjMzNH0.y5X4ORyaV27n3w7Q-xb0zdVRNxZ7AYQCy5aR5WMTZ1s'; // <- 여기에 'eyJ...'로 시작하는 긴 키를 붙여넣으세요!
+// ========================================================
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -16,9 +19,6 @@ const EXTERNAL_LINKS = [
   { name: '사주이론', url: 'https://care-book-one.vercel.app' },
   { name: '포스텔러 만세력', url: 'https://pro.forceteller.com/profile/edit' },
   { name: '사주비즈랩', url: 'https://www.sajulab.kr' },
-  { name: '만능답변기', url: 'https://chatgpt.com/g/g-693357ce305c8191b397c43d47f4af64-karaban-manneung-jilmundabbyeongi' },
-  { name: '만능궁합', url: 'https://chatgpt.com/g/g-6933589e04e88191aabeeaba96aff9ce-karaban-wanbyeog-gunghabbunseoggi' },
-  { name: '친절모드 답변', url: 'https://chatgpt.com/g/g-6934093e3694819199b17174399a85de-cinjeolmodeuro-dabbyeon' },
 ];
 
 const App: React.FC = () => {
@@ -71,19 +71,22 @@ const App: React.FC = () => {
     const loadData = async () => {
       setIsDbLoading(true);
       try {
-        // 1. 카테고리 로드
         const { data: cats, error: catError } = await supabase
           .from('categories')
           .select('*')
           .order('created_at', { ascending: true });
         
-        if (catError) throw catError;
+        if (catError) {
+          if (catError.code === '42P01') {
+            showToast('SQL 에디터에서 테이블을 먼저 생성해주세요!', 'error');
+          }
+          throw catError;
+        }
 
         if (cats && cats.length > 0) {
           setCategories(cats);
           setSelectedCategoryId(cats[0].id);
           
-          // 2. 멘트 로드
           const { data: snips, error: snipError } = await supabase
             .from('snippets')
             .select('*');
@@ -91,21 +94,20 @@ const App: React.FC = () => {
           if (snipError) throw snipError;
           setSnippets(snips || []);
         } else {
-          // 초기 카테고리 생성 (신규 사용자)
+          // 초기 카테고리 생성 시도
           const initialNames = ['초기안내', '상담진행', '입금안내', '마무리'];
           const { data: newCats, error: createError } = await supabase
             .from('categories')
             .insert(initialNames.map(name => ({ name, user_id: currentUser.id })))
             .select();
           
-          if (createError) throw createError;
-          if (newCats) {
+          if (!createError && newCats) {
             setCategories(newCats);
             setSelectedCategoryId(newCats[0].id);
           }
         }
       } catch (err: any) {
-        showToast(err.message || '데이터 로드 실패', 'error');
+        console.error("Data Load Error:", err);
       } finally {
         setIsDbLoading(false);
       }
@@ -121,7 +123,6 @@ const App: React.FC = () => {
     }
   }, [toast]);
 
-  // --- Search Logic ---
   const filteredSnippets = useMemo(() => {
     let result = snippets.filter(s => s.categoryId === selectedCategoryId);
     if (searchQuery.trim()) {
@@ -131,7 +132,6 @@ const App: React.FC = () => {
     return result;
   }, [snippets, selectedCategoryId, searchQuery]);
 
-  // --- Handlers ---
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
@@ -161,7 +161,7 @@ const App: React.FC = () => {
       .single();
 
     if (error) {
-      showToast('카테고리 추가 실패', 'error');
+      showToast('저장 실패: 테이블 구성을 확인하세요.', 'error');
     } else {
       setCategories([...categories, data]);
       setNewCategoryName('');
@@ -250,7 +250,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
-      {/* Toast Notification */}
       {toast.show && (
         <div className={`fixed top-6 right-6 z-[100] px-5 py-3 rounded-xl shadow-2xl animate-fade-in flex items-center space-x-3 border border-white/10 ${toast.type === 'success' ? 'bg-brand' : 'bg-slate-800'}`}>
           <CheckIcon className="w-5 h-5" />
@@ -258,7 +257,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-72 bg-slate-950 border-r border-slate-800 flex flex-col transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-8">
           <div className="flex items-center space-x-2 mb-2">
@@ -277,9 +275,9 @@ const App: React.FC = () => {
           {isDbLoading ? (
              <div className="py-10 text-center space-y-3">
                 <div className="w-6 h-6 border-2 border-brand/30 border-t-brand rounded-full animate-spin mx-auto"></div>
-                <p className="text-[10px] text-slate-500">클라우드 동기화 중...</p>
+                <p className="text-[10px] text-slate-500">데이터 로드 중...</p>
              </div>
-          ) : categories.map(cat => (
+          ) : categories.length > 0 ? categories.map(cat => (
             <div key={cat.id} onClick={() => { setSelectedCategoryId(cat.id); setIsMobileMenuOpen(false); }}
               className={`group flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition-all duration-300 ${selectedCategoryId === cat.id ? 'bg-brand text-white shadow-xl shadow-brand/20' : 'text-slate-400 hover:bg-slate-800'}`}>
               <div className="flex items-center space-x-3 overflow-hidden">
@@ -290,7 +288,11 @@ const App: React.FC = () => {
                 <TrashIcon className="w-3.5 h-3.5" />
               </button>
             </div>
-          ))}
+          )) : (
+            <div className="p-4 text-center">
+              <p className="text-xs text-slate-600">카테고리가 없습니다.</p>
+            </div>
+          )}
         </div>
 
         <div className="p-5 border-t border-slate-800 bg-slate-900/40">
@@ -307,13 +309,7 @@ const App: React.FC = () => {
                </div>
                <div className="flex flex-col truncate">
                  <span className="text-xs font-bold text-white truncate">{currentUser.email.split('@')[0]}</span>
-                 <div className="flex items-center space-x-1">
-                   {isSyncing ? (
-                      <span className="text-[9px] text-brand animate-pulse">Syncing...</span>
-                   ) : (
-                      <span className="text-[9px] text-slate-500">Cloud Synced</span>
-                   )}
-                 </div>
+                 <span className="text-[9px] text-slate-500">Cloud Synced</span>
                </div>
              </div>
              <button onClick={handleLogout} className="p-2 text-slate-600 hover:text-red-400 transition-all"><LogOutIcon className="w-4 h-4" /></button>
@@ -321,7 +317,6 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col bg-slate-900 overflow-hidden">
         <header className="px-6 md:px-10 py-8 flex items-center justify-between gap-4">
           <div className="flex items-center">
@@ -354,7 +349,7 @@ const App: React.FC = () => {
                     </div>
                   </div>
                   <div onClick={() => copyToClipboard(snip.content)} className="cursor-pointer">
-                    <p className="text-slate-400 text-sm leading-relaxed line-clamp-4 mb-4">{snip.content}</p>
+                    <p className="text-slate-400 text-sm leading-relaxed line-clamp-4 mb-4 whitespace-pre-wrap">{snip.content}</p>
                     <div className="flex items-center justify-between pt-3 border-t border-slate-700/30">
                        <span className="text-[10px] font-black text-brand uppercase">Click to copy</span>
                        <CopyIcon className="w-4 h-4 text-brand" />
@@ -367,6 +362,7 @@ const App: React.FC = () => {
             <div className="h-full flex flex-col items-center justify-center opacity-30">
                <DatabaseIcon className="w-20 h-20 mb-4" />
                <p className="text-xl font-bold">비어있음</p>
+               <p className="text-sm mt-2 text-center">카테고리를 선택하거나<br/>우측 상단 '추가' 버튼을 눌러보세요.</p>
             </div>
           )}
         </div>
