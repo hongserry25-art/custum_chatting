@@ -258,8 +258,14 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Sidebar Overlay for Mobile */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 bg-black/60 z-30 md:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>
+      )}
+
       <aside className={`fixed inset-y-0 left-0 z-40 w-72 bg-slate-950 border-r border-slate-800 flex flex-col transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-8">
+        {/* Logo Section */}
+        <div className="p-8 pb-4">
           <div className="flex items-center space-x-2 mb-2">
             <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center shadow-lg shadow-brand/30">
               <CloudIcon className="w-5 h-5 text-white" />
@@ -272,67 +278,67 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 space-y-6 custom-scrollbar pb-6">
-          {/* Categories Section */}
-          <div className="space-y-1.5">
-            <label className="px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest">Categories</label>
-            {isDbLoading ? (
-               <div className="py-10 text-center space-y-3">
-                  <div className="w-6 h-6 border-2 border-brand/30 border-t-brand rounded-full animate-spin mx-auto"></div>
-                  <p className="text-[10px] text-slate-500">데이터 로드 중...</p>
-               </div>
-            ) : categories.length > 0 ? categories.map(cat => (
-              <div key={cat.id} onClick={() => { setSelectedCategoryId(cat.id); setIsMobileMenuOpen(false); }}
-                className={`group flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition-all duration-300 ${selectedCategoryId === cat.id ? 'bg-brand text-white shadow-xl shadow-brand/20' : 'text-slate-400 hover:bg-slate-800'}`}>
-                <div className="flex items-center space-x-3 overflow-hidden">
-                  <FolderIcon className={`w-4 h-4 ${selectedCategoryId === cat.id ? 'text-white' : 'text-slate-600'}`} />
-                  <span className="text-sm font-bold truncate">{cat.name}</span>
-                </div>
-                <button onClick={(e) => handleDeleteCategory(cat.id, e)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/10 rounded transition-opacity">
-                  <TrashIcon className="w-3.5 h-3.5" />
-                </button>
+        {/* Categories Section (Scrollable) */}
+        <div className="flex-1 overflow-y-auto px-4 space-y-1.5 custom-scrollbar py-4">
+          <label className="px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest block mb-2">Categories</label>
+          {isDbLoading ? (
+             <div className="py-10 text-center space-y-3">
+                <div className="w-6 h-6 border-2 border-brand/30 border-t-brand rounded-full animate-spin mx-auto"></div>
+                <p className="text-[10px] text-slate-500">데이터 로드 중...</p>
+             </div>
+          ) : categories.length > 0 ? categories.map(cat => (
+            <div key={cat.id} onClick={() => { setSelectedCategoryId(cat.id); setIsMobileMenuOpen(false); }}
+              className={`group flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition-all duration-300 ${selectedCategoryId === cat.id ? 'bg-brand text-white shadow-xl shadow-brand/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <div className="flex items-center space-x-3 overflow-hidden">
+                <FolderIcon className={`w-4 h-4 ${selectedCategoryId === cat.id ? 'text-white' : 'text-slate-600'}`} />
+                <span className="text-sm font-bold truncate">{cat.name}</span>
               </div>
-            )) : (
-              <div className="p-4 text-center">
-                <p className="text-xs text-slate-600">SQL 테이블을 먼저 생성해주세요.</p>
-              </div>
-            )}
-          </div>
+              <button onClick={(e) => handleDeleteCategory(cat.id, e)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/10 rounded transition-opacity">
+                <TrashIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )) : (
+            <div className="p-4 text-center">
+              <p className="text-xs text-slate-600">SQL 테이블을 생성하세요.</p>
+            </div>
+          )}
+        </div>
 
-          {/* External Links Section */}
-          <div className="space-y-1.5 pt-4 border-t border-slate-900">
-            <label className="px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest">Quick Links</label>
+        {/* Fixed Sections (Bottom) */}
+        <div className="border-t border-slate-900 bg-slate-950/80 backdrop-blur-md">
+          {/* Quick Links Section */}
+          <div className="p-4 space-y-1">
+            <label className="px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest block mb-2">Quick Links</label>
             {EXTERNAL_LINKS.map(link => (
               <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
-                 className="flex items-center justify-between p-3.5 rounded-xl text-slate-500 hover:bg-slate-800 hover:text-slate-200 transition-all duration-300 group">
-                <div className="flex items-center space-x-3">
-                  <ExternalLinkIcon className="w-4 h-4 text-slate-700 group-hover:text-brand transition-colors" />
-                  <span className="text-sm font-bold">{link.name}</span>
-                </div>
+                 className="flex items-center space-x-3 p-3 rounded-xl text-slate-500 hover:bg-brand/10 hover:text-brand transition-all duration-300 group">
+                <ExternalLinkIcon className="w-4 h-4 text-slate-700 group-hover:text-brand" />
+                <span className="text-sm font-bold">{link.name}</span>
               </a>
             ))}
           </div>
-        </div>
 
-        <div className="p-5 border-t border-slate-800 bg-slate-900/40">
-           <form onSubmit={handleAddCategory} className="flex space-x-2 mb-4">
-              <input type="text" placeholder="새 카테고리" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}
-                className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-brand" />
-              <button type="submit" className="p-2 bg-brand text-white rounded-lg"><PlusIcon className="w-4 h-4" /></button>
-           </form>
+          {/* User & Footer Section */}
+          <div className="p-5 border-t border-slate-800 bg-slate-900/40">
+             <form onSubmit={handleAddCategory} className="flex space-x-2 mb-4">
+                <input type="text" placeholder="새 카테고리" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-brand" />
+                <button type="submit" className="p-2 bg-brand text-white rounded-lg"><PlusIcon className="w-4 h-4" /></button>
+             </form>
 
-           <div className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800">
-             <div className="flex items-center space-x-3 overflow-hidden">
-               <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-brand font-black">
-                 {currentUser.email[0].toUpperCase()}
+             <div className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800">
+               <div className="flex items-center space-x-3 overflow-hidden">
+                 <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-brand font-black">
+                   {currentUser.email[0].toUpperCase()}
+                 </div>
+                 <div className="flex flex-col truncate">
+                   <span className="text-xs font-bold text-white truncate">{currentUser.email.split('@')[0]}</span>
+                   <span className="text-[9px] text-slate-500">Cloud Synced</span>
+                 </div>
                </div>
-               <div className="flex flex-col truncate">
-                 <span className="text-xs font-bold text-white truncate">{currentUser.email.split('@')[0]}</span>
-                 <span className="text-[9px] text-slate-500">Cloud Synced</span>
-               </div>
+               <button onClick={handleLogout} className="p-2 text-slate-600 hover:text-red-400 transition-all"><LogOutIcon className="w-4 h-4" /></button>
              </div>
-             <button onClick={handleLogout} className="p-2 text-slate-600 hover:text-red-400 transition-all"><LogOutIcon className="w-4 h-4" /></button>
-           </div>
+          </div>
         </div>
       </aside>
 
@@ -371,7 +377,8 @@ const App: React.FC = () => {
                     <p className="text-slate-400 text-sm leading-relaxed line-clamp-4 mb-4 whitespace-pre-wrap">{snip.content}</p>
                     <div className="flex items-center justify-between pt-3 border-t border-slate-700/30">
                        <span className="text-[10px] font-black text-brand uppercase">Click to copy</span>
-                       <CopyIcon className="w-4 h-4 text-brand" />
+                       <span className="text-[10px] text-slate-600">{snip.content.length}자</span>
+                       <CopyIcon className="w-4 h-4 text-brand ml-auto" />
                     </div>
                   </div>
                 </div>
