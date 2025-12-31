@@ -75,10 +75,11 @@ const App: React.FC = () => {
     const loadData = async () => {
       setIsDbLoading(true);
       try {
+        // sort_order 기준으로 가져오기 (컬럼 추가 후)
         const { data: cats, error: catError } = await supabase
           .from('categories')
           .select('*')
-          .order('created_at', { ascending: true });
+          .order('sort_order', { ascending: true });
         
         if (catError) {
           if (catError.code === '42P01') {
@@ -101,7 +102,7 @@ const App: React.FC = () => {
           const initialNames = ['초기안내', '상담진행', '입금안내', '마무리'];
           const { data: newCats, error: createError } = await supabase
             .from('categories')
-            .insert(initialNames.map(name => ({ name, user_id: currentUser.id })))
+            .insert(initialNames.map((name, idx) => ({ name, user_id: currentUser.id, sort_order: idx })))
             .select();
           
           if (!createError && newCats) {
@@ -157,14 +158,21 @@ const App: React.FC = () => {
     if (!newCategoryName.trim() || !currentUser) return;
     
     setIsSyncing(true);
+    // 가장 큰 sort_order 찾기
+    const maxOrder = categories.reduce((max, cat) => Math.max(max, (cat as any).sort_order || 0), -1);
+    
     const { data, error } = await supabase
       .from('categories')
-      .insert({ name: newCategoryName.trim(), user_id: currentUser.id })
+      .insert({ 
+        name: newCategoryName.trim(), 
+        user_id: currentUser.id,
+        sort_order: maxOrder + 1
+      })
       .select()
       .single();
 
     if (error) {
-      showToast('저장 실패: 테이블이 생성되었는지 확인하세요.', 'error');
+      showToast('저장 실패: 테이블 구성을 확인하세요.', 'error');
     } else {
       setCategories([...categories, data]);
       setNewCategoryName('');
@@ -191,7 +199,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleMoveCategory = (index: number, direction: 'up' | 'down', e: React.MouseEvent) => {
+  const handleMoveCategory = async (index: number, direction: 'up' | 'down', e: React.MouseEvent) => {
     e.stopPropagation();
     const newCategories = [...categories];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
@@ -199,11 +207,30 @@ const App: React.FC = () => {
     if (targetIndex < 0 || targetIndex >= newCategories.length) return;
 
     // Swap items in state
-    [newCategories[index], newCategories[targetIndex]] = [newCategories[targetIndex], newCategories[index]];
-    setCategories(newCategories);
-    showToast('순서가 변경되었습니다 (UI상 적용)');
+    const item1 = { ...newCategories[index] };
+    const item2 = { ...newCategories[targetIndex] };
     
-    // Note: To persist this, you'd need a sort_order column in Supabase and update the DB here.
+    // Swap sort_order values
+    const tempOrder = (item1 as any).sort_order;
+    (item1 as any).sort_order = (item2 as any).sort_order;
+    (item2 as any).sort_order = tempOrder;
+
+    newCategories[index] = item2;
+    newCategories[targetIndex] = item1;
+    
+    setCategories(newCategories);
+    
+    // DB 업데이트
+    setIsSyncing(true);
+    const { error: err1 } = await supabase.from('categories').update({ sort_order: (item1 as any).sort_order }).eq('id', item1.id);
+    const { error: err2 } = await supabase.from('categories').update({ sort_order: (item2 as any).sort_order }).eq('id', item2.id);
+    
+    if (err1 || err2) {
+      showToast('순서 저장 중 오류 발생', 'error');
+    } else {
+      showToast('순서가 클라우드에 저장되었습니다');
+    }
+    setIsSyncing(false);
   };
 
   const handleSnippetSave = async () => {
@@ -290,8 +317,8 @@ const App: React.FC = () => {
             <h1 className="text-xl font-black text-white tracking-tighter">CLOUD MENT</h1>
           </div>
           <div className="flex items-center space-x-2">
-             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Supabase Connected</span>
+             <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-brand animate-pulse' : 'bg-green-500'}`}></div>
+             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{isSyncing ? 'Syncing...' : 'Supabase Connected'}</span>
           </div>
         </div>
 
@@ -312,28 +339,28 @@ const App: React.FC = () => {
               </div>
               <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <div className="flex flex-col mr-1">
-                  <button onClick={(e) => handleMoveCategory(index, 'up', e)} disabled={index === 0} className="p-0.5 hover:bg-black/10 rounded disabled:opacity-20">
+                  <button onClick={(e) => handleMoveCategory(index, 'up', e)} disabled={index === 0} className="p-0.5 hover:bg-black/20 rounded disabled:opacity-10">
                     <ChevronUpIcon className="w-3 h-3" />
                   </button>
-                  <button onClick={(e) => handleMoveCategory(index, 'down', e)} disabled={index === categories.length - 1} className="p-0.5 hover:bg-black/10 rounded disabled:opacity-20">
+                  <button onClick={(e) => handleMoveCategory(index, 'down', e)} disabled={index === categories.length - 1} className="p-0.5 hover:bg-black/20 rounded disabled:opacity-10">
                     <ChevronDownIcon className="w-3 h-3" />
                   </button>
                 </div>
-                <button onClick={(e) => handleDeleteCategory(cat.id, e)} className="p-1 hover:bg-black/10 rounded">
+                <button onClick={(e) => handleDeleteCategory(cat.id, e)} className="p-1 hover:bg-black/20 rounded">
                   <TrashIcon className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
           )) : (
             <div className="p-4 text-center">
-              <p className="text-xs text-slate-600">SQL 테이블을 생성하세요.</p>
+              <p className="text-xs text-slate-600 font-bold">카테고리를 추가하세요.</p>
             </div>
           )}
         </div>
 
         {/* Fixed Sections (Bottom) */}
         <div className="border-t border-slate-900 bg-slate-950/80 backdrop-blur-md overflow-hidden flex flex-col max-h-[50%]">
-          {/* Quick Links Section (Internal Scroll if many links) */}
+          {/* Quick Links Section */}
           <div className="p-4 space-y-1 overflow-y-auto custom-scrollbar flex-1">
             <label className="px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest block mb-2">Quick Links</label>
             {EXTERNAL_LINKS.map(link => (
@@ -354,7 +381,7 @@ const App: React.FC = () => {
           <div className="p-5 border-t border-slate-800 bg-slate-900/40">
              <form onSubmit={handleAddCategory} className="flex space-x-2 mb-4">
                 <input type="text" placeholder="새 카테고리" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}
-                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-brand" />
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-brand text-white" />
                 <button type="submit" className="p-2 bg-brand text-white rounded-lg transition-transform active:scale-90"><PlusIcon className="w-4 h-4" /></button>
              </form>
 
@@ -365,7 +392,7 @@ const App: React.FC = () => {
                  </div>
                  <div className="flex flex-col truncate">
                    <span className="text-xs font-bold text-white truncate">{currentUser.email.split('@')[0]}</span>
-                   <span className="text-[9px] text-slate-500">Cloud Synced</span>
+                   <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">Pro Member</span>
                  </div>
                </div>
                <button onClick={handleLogout} className="p-2 text-slate-600 hover:text-red-400 transition-all flex-shrink-0"><LogOutIcon className="w-4 h-4" /></button>
@@ -375,7 +402,7 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 flex flex-col bg-slate-900 overflow-hidden">
-        <header className="px-6 md:px-10 py-8 flex items-center justify-between gap-4">
+        <header className="px-6 md:px-10 py-8 flex items-center justify-between gap-4 bg-gradient-to-b from-slate-950/20 to-transparent">
           <div className="flex items-center">
             <button className="md:hidden mr-4 p-2 bg-slate-800 rounded-lg" onClick={() => setIsMobileMenuOpen(true)}>
               <MenuIcon className="w-6 h-6" />
@@ -384,8 +411,8 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="relative hidden md:block">
-              <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <div className="relative hidden md:block group">
+              <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-brand transition-colors" />
               <input type="text" placeholder="멘트 검색..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                 className="bg-slate-800/50 border border-slate-700/50 rounded-2xl pl-12 pr-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-brand/40 outline-none w-64 transition-all" />
             </div>
