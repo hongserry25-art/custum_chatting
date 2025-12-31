@@ -3,18 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
     <meta name="theme-color" content="#0f172a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     
-    <!-- SEO & Social Sharing -->
     <title>채팅 멘트 관리 도우미 | 사주비즈랩</title>
-    <meta name="description" content="사주 상담 및 비즈니스 채팅 멘트를 효율적으로 관리하고 원클릭으로 복사하세요." />
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="채팅 멘트 관리 도우미" />
-    <meta property="og:description" content="자주 쓰는 멘트를 카테고리별로 저장하고 즉시 복사하여 사용하세요." />
-    <meta property="og:image" content="https://www.sajulab.kr/logo.png" /> <!-- 실제 로고 주소로 변경 권장 -->
+    <meta name="description" content="사주 상담 및 비즈니스 채팅 멘트를 클라우드에 안전하게 보관하세요." />
     
     <link rel="manifest" href="/manifest.json" />
     
@@ -33,27 +28,13 @@
         }
       }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <style>
       body {
         font-family: 'Noto Sans KR', sans-serif;
         background-color: #0f172a;
         color: #f8fafc;
         -webkit-tap-highlight-color: transparent;
-      }
-      ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #1e293b; 
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #475569; 
-        border-radius: 10px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #64748b; 
       }
       .custom-scrollbar::-webkit-scrollbar {
         width: 4px;
@@ -72,7 +53,8 @@
     "uuid": "https://aistudiocdn.com/uuid@^13.0.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
     "react/": "https://aistudiocdn.com/react@^19.2.1/",
-    "react": "https://aistudiocdn.com/react@^19.2.1"
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm"
   }
 }
 </script>

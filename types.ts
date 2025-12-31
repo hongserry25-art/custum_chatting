@@ -1,13 +1,15 @@
 export interface Category {
   id: string;
+  user_id?: string;
   name: string;
 }
 
 export interface Snippet {
   id: string;
+  user_id?: string;
   categoryId: string;
-  label: string; // The short distinguishing text
-  content: string; // The main content to copy
+  label: string; 
+  content: string; 
 }
 
 export interface ToastState {
@@ -17,6 +19,6 @@ export interface ToastState {
 }
 
 export interface User {
+  id: string;
   email: string;
-  password?: string; // Only used for auth verification, normally wouldn't keep in state
 }

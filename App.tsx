@@ -1,40 +1,16 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Category, Snippet, ToastState, User } from './types';
-import { CopyIcon, EditIcon, TrashIcon, PlusIcon, FolderIcon, CheckIcon, UserIcon, LogOutIcon, MenuIcon, ExternalLinkIcon, SearchIcon, XIcon } from './components/Icons';
+import { CopyIcon, EditIcon, TrashIcon, PlusIcon, FolderIcon, CheckIcon, UserIcon, LogOutIcon, MenuIcon, ExternalLinkIcon, SearchIcon, XIcon, DatabaseIcon, CloudIcon } from './components/Icons';
 import { Modal } from './components/Modal';
 import { Auth } from './components/Auth';
 
-// --- Constants & Defaults ---
-const STORAGE_KEY_CURRENT_USER = 'chat_helper_current_user';
+// --- Supabase Configuration ---
+// 주의: 여기에 본인의 슈퍼베이스 프로젝트 정보를 입력하세요.
+const SUPABASE_URL = 'https://your-project-url.supabase.co';
+const SUPABASE_KEY = 'your-anon-key';
 
-const DEFAULT_CATEGORIES: Category[] = [
-  { id: 'cat-1', name: '초기안내' },
-  { id: 'cat-2', name: '상담진행' },
-  { id: 'cat-3', name: '입금안내' },
-  { id: 'cat-4', name: '마무리' },
-];
-
-const DEFAULT_SNIPPETS: Snippet[] = [
-  { 
-    id: 'snip-1', 
-    categoryId: 'cat-1', 
-    label: '서비스 소개', 
-    content: '저희 서비스는 24시간 운영되며, 언제든지 문의가 가능합니다. 아래 메뉴에서 원하시는 항목을 선택해주세요.' 
-  },
-  { 
-    id: 'snip-2', 
-    categoryId: 'cat-1', 
-    label: '첫 인사', 
-    content: '안녕하세요! 찾아주셔서 감사합니다. 무엇을 도와드릴까요?' 
-  },
-  { 
-    id: 'snip-3', 
-    categoryId: 'cat-3', 
-    label: '계좌 정보', 
-    content: '국민은행 000-000000-00-000 예금주: 홍길동' 
-  },
-];
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const EXTERNAL_LINKS = [
   { name: '사주이론', url: 'https://care-book-one.vercel.app' },
@@ -46,474 +22,371 @@ const EXTERNAL_LINKS = [
 ];
 
 const App: React.FC = () => {
-  // --- Auth State ---
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-
-  // --- App State ---
   const [categories, setCategories] = useState<Category[]>([]);
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
+  const [isDbLoading, setIsDbLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+
   // UI States
   const [newCategoryName, setNewCategoryName] = useState('');
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
   const [isSnippetModalOpen, setIsSnippetModalOpen] = useState(false);
   const [snippetForm, setSnippetForm] = useState<{label: string, content: string}>({ label: '', content: '' });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [expandedSnippets, setExpandedSnippets] = useState<Set<string>>(new Set());
-  
-  // Toast State
   const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'info' });
 
-  // Refs
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // --- Helper: Dynamic Keys ---
-  const getCategoriesKey = (email: string) => `chat_helper_categories_${email}`;
-  const getSnippetsKey = (email: string) => `chat_helper_snippets_${email}`;
-
-  // --- Helper: Toast ---
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ show: true, message, type });
   };
 
-  // --- Effects ---
+  // --- Auth Session Check ---
   useEffect(() => {
-    const savedUser = localStorage.getItem(STORAGE_KEY_CURRENT_USER);
-    if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
-    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setCurrentUser({ id: session.user.id, email: session.user.email || '' });
+      }
+      setIsAuthChecking(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setCurrentUser({ id: session.user.id, email: session.user.email || '' });
+      } else {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
+  // --- Fetch Data from Supabase ---
   useEffect(() => {
-    if (!currentUser) {
-      setCategories([]);
-      setSnippets([]);
-      return;
-    }
+    if (!currentUser) return;
 
-    const catKey = getCategoriesKey(currentUser.email);
-    const snipKey = getSnippetsKey(currentUser.email);
+    const loadData = async () => {
+      setIsDbLoading(true);
+      try {
+        // 1. 카테고리 로드
+        const { data: cats, error: catError } = await supabase
+          .from('categories')
+          .select('*')
+          .order('created_at', { ascending: true });
+        
+        if (catError) throw catError;
 
-    const loadedCats = localStorage.getItem(catKey);
-    const loadedSnips = localStorage.getItem(snipKey);
+        if (cats && cats.length > 0) {
+          setCategories(cats);
+          setSelectedCategoryId(cats[0].id);
+          
+          // 2. 멘트 로드
+          const { data: snips, error: snipError } = await supabase
+            .from('snippets')
+            .select('*');
+          
+          if (snipError) throw snipError;
+          setSnippets(snips || []);
+        } else {
+          // 초기 카테고리 생성 (신규 사용자)
+          const initialNames = ['초기안내', '상담진행', '입금안내', '마무리'];
+          const { data: newCats, error: createError } = await supabase
+            .from('categories')
+            .insert(initialNames.map(name => ({ name, user_id: currentUser.id })))
+            .select();
+          
+          if (createError) throw createError;
+          if (newCats) {
+            setCategories(newCats);
+            setSelectedCategoryId(newCats[0].id);
+          }
+        }
+      } catch (err: any) {
+        showToast(err.message || '데이터 로드 실패', 'error');
+      } finally {
+        setIsDbLoading(false);
+      }
+    };
 
-    if (loadedCats) {
-      const parsedCats = JSON.parse(loadedCats);
-      setCategories(parsedCats);
-      if (parsedCats.length > 0) setSelectedCategoryId(parsedCats[0].id);
-    } else {
-      setCategories(DEFAULT_CATEGORIES);
-      setSelectedCategoryId(DEFAULT_CATEGORIES[0].id);
-      localStorage.setItem(catKey, JSON.stringify(DEFAULT_CATEGORIES));
-    }
-
-    if (loadedSnips) {
-      setSnippets(JSON.parse(loadedSnips));
-    } else {
-      setSnippets(DEFAULT_SNIPPETS);
-      localStorage.setItem(snipKey, JSON.stringify(DEFAULT_SNIPPETS));
-    }
+    loadData();
   }, [currentUser]);
 
   useEffect(() => {
-    if (currentUser && categories.length > 0) {
-      localStorage.setItem(getCategoriesKey(currentUser.email), JSON.stringify(categories));
-    }
-  }, [categories, currentUser]);
-
-  useEffect(() => {
-    if (currentUser && snippets.length > 0) {
-      localStorage.setItem(getSnippetsKey(currentUser.email), JSON.stringify(snippets));
-    }
-  }, [snippets, currentUser]);
-
-  useEffect(() => {
     if (toast.show) {
-      const timer = setTimeout(() => {
-        setToast({ ...toast, show: false });
-      }, 2000);
+      const timer = setTimeout(() => setToast({ ...toast, show: false }), 2000);
       return () => clearTimeout(timer);
     }
   }, [toast]);
 
-  // --- Search & Filter Logic ---
+  // --- Search Logic ---
   const filteredSnippets = useMemo(() => {
     let result = snippets.filter(s => s.categoryId === selectedCategoryId);
     if (searchQuery.trim()) {
-      const lowerQuery = searchQuery.toLowerCase();
-      result = result.filter(s => 
-        s.label.toLowerCase().includes(lowerQuery) || 
-        s.content.toLowerCase().includes(lowerQuery)
-      );
+      const q = searchQuery.toLowerCase();
+      result = result.filter(s => s.label.toLowerCase().includes(q) || s.content.toLowerCase().includes(q));
     }
     return result;
   }, [snippets, selectedCategoryId, searchQuery]);
 
   // --- Handlers ---
-  const handleLogin = (user: User) => {
-    setCurrentUser(user);
-    localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(user));
-  };
-
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setCurrentUser(null);
-    localStorage.removeItem(STORAGE_KEY_CURRENT_USER);
+    setCategories([]);
+    setSnippets([]);
     showToast('로그아웃 되었습니다.', 'info');
   };
 
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      showToast('텍스트가 복사되었습니다!');
+      showToast('복사 완료!');
     } catch (err) {
-      showToast('복사에 실패했습니다.', 'error');
+      showToast('복사 실패', 'error');
     }
   };
 
-  const handleAddCategory = (e: React.FormEvent) => {
+  const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCategoryName.trim()) return;
-    const newCat: Category = { id: uuidv4(), name: newCategoryName.trim() };
-    setCategories([...categories, newCat]);
-    setNewCategoryName('');
-    setSelectedCategoryId(newCat.id); 
-    showToast('새 카테고리가 추가되었습니다.');
-  };
+    if (!newCategoryName.trim() || !currentUser) return;
+    
+    setIsSyncing(true);
+    const { data, error } = await supabase
+      .from('categories')
+      .insert({ name: newCategoryName.trim(), user_id: currentUser.id })
+      .select()
+      .single();
 
-  const handleDeleteCategory = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm('이 카테고리를 삭제하시겠습니까? 포함된 모든 멘트도 삭제됩니다.')) {
-      setCategories(categories.filter(c => c.id !== id));
-      setSnippets(snippets.filter(s => s.categoryId !== id));
-      if (selectedCategoryId === id) {
-        setSelectedCategoryId(categories.length > 1 ? categories.find(c => c.id !== id)?.id || null : null);
-      }
-      showToast('카테고리가 삭제되었습니다.', 'info');
-    }
-  };
-
-  const handleEditCategoryStart = (cat: Category, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingCategory(cat);
-  };
-
-  const handleEditCategorySave = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingCategory || !editingCategory.name.trim()) return;
-    setCategories(categories.map(c => c.id === editingCategory.id ? editingCategory : c));
-    setEditingCategory(null);
-    showToast('카테고리가 수정되었습니다.');
-  };
-
-  const openAddSnippetModal = () => {
-    setEditingSnippet(null);
-    setSnippetForm({ label: '', content: '' });
-    setIsSnippetModalOpen(true);
-  };
-
-  const openEditSnippetModal = (snippet: Snippet, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingSnippet(snippet);
-    setSnippetForm({ label: snippet.label, content: snippet.content });
-    setIsSnippetModalOpen(true);
-  };
-
-  const handleSnippetSave = () => {
-    if (!snippetForm.content.trim()) {
-      showToast('내용을 입력해주세요.', 'error');
-      return;
-    }
-    if (editingSnippet) {
-      const updatedSnippet = { ...editingSnippet, ...snippetForm };
-      setSnippets(snippets.map(s => s.id === editingSnippet.id ? updatedSnippet : s));
-      showToast('멘트가 수정되었습니다.');
+    if (error) {
+      showToast('카테고리 추가 실패', 'error');
     } else {
-      if (!selectedCategoryId) return;
-      const newSnippet: Snippet = { id: uuidv4(), categoryId: selectedCategoryId, ...snippetForm };
-      setSnippets([...snippets, newSnippet]);
-      showToast('새 멘트가 추가되었습니다.');
+      setCategories([...categories, data]);
+      setNewCategoryName('');
+      setSelectedCategoryId(data.id);
+      showToast('카테고리 추가됨');
+    }
+    setIsSyncing(false);
+  };
+
+  const handleDeleteCategory = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm('이 카테고리와 내부 멘트를 모두 삭제할까요?')) {
+      setIsSyncing(true);
+      const { error } = await supabase.from('categories').delete().eq('id', id);
+      if (error) {
+        showToast('삭제 실패', 'error');
+      } else {
+        setCategories(categories.filter(c => c.id !== id));
+        setSnippets(snippets.filter(s => s.categoryId !== id));
+        if (selectedCategoryId === id) setSelectedCategoryId(categories[0]?.id || null);
+        showToast('삭제됨', 'info');
+      }
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSnippetSave = async () => {
+    if (!snippetForm.content.trim() || !currentUser || !selectedCategoryId) return;
+    
+    setIsSyncing(true);
+    if (editingSnippet) {
+      const { error } = await supabase
+        .from('snippets')
+        .update({ label: snippetForm.label, content: snippetForm.content })
+        .eq('id', editingSnippet.id);
+      
+      if (error) showToast('수정 실패', 'error');
+      else {
+        setSnippets(snippets.map(s => s.id === editingSnippet.id ? { ...editingSnippet, ...snippetForm } : s));
+        showToast('수정 완료');
+      }
+    } else {
+      const { data, error } = await supabase
+        .from('snippets')
+        .insert({ 
+          label: snippetForm.label, 
+          content: snippetForm.content, 
+          categoryId: selectedCategoryId, 
+          user_id: currentUser.id 
+        })
+        .select()
+        .single();
+      
+      if (error) showToast('저장 실패', 'error');
+      else {
+        setSnippets([...snippets, data]);
+        showToast('저장 완료');
+      }
     }
     setIsSnippetModalOpen(false);
+    setIsSyncing(false);
   };
 
-  const handleDeleteSnippet = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm('이 멘트를 삭제하시겠습니까?')) {
-      setSnippets(snippets.filter(s => s.id !== id));
-      showToast('멘트가 삭제되었습니다.', 'info');
+  const handleDeleteSnippet = async (id: string) => {
+    if (window.confirm('삭제하시겠습니까?')) {
+      setIsSyncing(true);
+      const { error } = await supabase.from('snippets').delete().eq('id', id);
+      if (error) showToast('삭제 실패', 'error');
+      else {
+        setSnippets(snippets.filter(s => s.id !== id));
+        showToast('삭제됨', 'info');
+      }
+      setIsSyncing(false);
     }
   };
 
-  const handleDuplicateSnippet = (snippet: Snippet, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const newSnippet: Snippet = { ...snippet, id: uuidv4(), label: `${snippet.label} (복사본)` };
-    setSnippets([...snippets, newSnippet]);
-    showToast('멘트가 복제되었습니다.');
-  };
+  if (isAuthChecking) return (
+    <div className="h-screen bg-slate-900 flex items-center justify-center">
+      <div className="w-12 h-12 border-4 border-brand/20 border-t-brand rounded-full animate-spin"></div>
+    </div>
+  );
 
-  const toggleSnippetExpansion = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const newSet = new Set(expandedSnippets);
-    if (newSet.has(id)) newSet.delete(id);
-    else newSet.add(id);
-    setExpandedSnippets(newSet);
-  };
-
-  // --- Backup & Restore ---
-  const exportData = () => {
-    const data = {
-      categories,
-      snippets,
-      exportDate: new Date().toISOString(),
-      user: currentUser?.email
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `chat-helper-backup-${new Date().toLocaleDateString()}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    showToast('데이터가 파일로 저장되었습니다.');
-  };
-
-  const importData = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target?.result as string);
-        if (json.categories && json.snippets) {
-          if (window.confirm('현재 데이터를 덮어쓰고 백업 데이터를 불러올까요?')) {
-            setCategories(json.categories);
-            setSnippets(json.snippets);
-            if (json.categories.length > 0) setSelectedCategoryId(json.categories[0].id);
-            showToast('데이터 복구가 완료되었습니다.');
-          }
-        } else {
-          showToast('올바른 백업 파일이 아닙니다.', 'error');
-        }
-      } catch (err) {
-        showToast('파일을 읽는 중 오류가 발생했습니다.', 'error');
-      }
-    };
-    reader.readAsText(file);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  if (!currentUser) {
-    return (
-      <>
-        {toast.show && (
-          <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transform transition-all duration-300 flex items-center space-x-2 
-            ${toast.type === 'success' ? 'bg-brand text-white' : toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-700 text-white'}`}>
-            <span className="font-medium">{toast.message}</span>
-          </div>
-        )}
-        <Auth onLogin={handleLogin} showToast={showToast} />
-      </>
-    );
-  }
+  if (!currentUser) return <Auth supabase={supabase} showToast={showToast} />;
 
   const activeCategory = categories.find(c => c.id === selectedCategoryId);
 
   return (
     <div className="flex h-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
+      {/* Toast Notification */}
       {toast.show && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transform transition-all duration-300 flex items-center space-x-2 
-          ${toast.type === 'success' ? 'bg-brand text-white' : toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-700 text-white'}`}>
-          {toast.type === 'success' && <CheckIcon className="w-5 h-5"/>}
-          <span className="font-medium">{toast.message}</span>
+        <div className={`fixed top-6 right-6 z-[100] px-5 py-3 rounded-xl shadow-2xl animate-fade-in flex items-center space-x-3 border border-white/10 ${toast.type === 'success' ? 'bg-brand' : 'bg-slate-800'}`}>
+          <CheckIcon className="w-5 h-5" />
+          <span className="font-bold text-sm">{toast.message}</span>
         </div>
       )}
 
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm md:hidden animate-fade-in" onClick={() => setIsMobileMenuOpen(false)} />
-      )}
-
-      <aside className={`fixed inset-y-0 left-0 z-40 w-72 bg-slate-950/95 backdrop-blur-xl md:backdrop-blur-none md:bg-slate-950/50 border-r border-slate-800 flex flex-col flex-shrink-0 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:relative'}`}>
-        <div className="p-6">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-brand to-cyan-400 bg-clip-text text-transparent mb-1">카테고리</h1>
-          <p className="text-xs text-slate-500 font-light">나만의 멘트 보관함</p>
+      {/* Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 z-40 w-72 bg-slate-950 border-r border-slate-800 flex flex-col transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-8">
+          <div className="flex items-center space-x-2 mb-2">
+            <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center shadow-lg shadow-brand/30">
+              <CloudIcon className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="text-xl font-black text-white tracking-tighter">CLOUD MENT</h1>
+          </div>
+          <div className="flex items-center space-x-2">
+             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Supabase Connected</span>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 space-y-2 custom-scrollbar">
-          {categories.map(category => (
-            <div key={category.id} onClick={() => { setSelectedCategoryId(category.id); setIsMobileMenuOpen(false); setSearchQuery(''); }}
-              className={`group flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-200 ${selectedCategoryId === category.id ? 'bg-brand shadow-md shadow-brand/20 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
-              {editingCategory?.id === category.id ? (
-                <form onSubmit={handleEditCategorySave} className="flex-1 flex items-center" onClick={e => e.stopPropagation()}>
-                  <input autoFocus type="text" value={editingCategory.name} onChange={(e) => setEditingCategory({...editingCategory, name: e.target.value})} onBlur={() => setEditingCategory(null)}
-                    className="w-full bg-slate-700 text-white px-2 py-1 rounded text-sm outline-none border border-brand" />
-                  <button type="submit" className="ml-2 text-brand hover:text-brand-dark"><CheckIcon className="w-4 h-4" /></button>
-                </form>
-              ) : (
-                <>
-                  <div className="flex items-center space-x-3 overflow-hidden">
-                    <FolderIcon className={`w-5 h-5 flex-shrink-0 ${selectedCategoryId === category.id ? 'text-white' : 'text-slate-600 group-hover:text-slate-500'}`} />
-                    <span className="font-medium truncate">{category.name}</span>
-                  </div>
-                  <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={(e) => handleEditCategoryStart(category, e)} className="p-1 hover:bg-white/10 rounded"><EditIcon className="w-4 h-4" /></button>
-                    <button onClick={(e) => handleDeleteCategory(category.id, e)} className="p-1 hover:bg-red-500/20 hover:text-red-400 rounded"><TrashIcon className="w-4 h-4" /></button>
-                  </div>
-                </>
-              )}
+        <div className="flex-1 overflow-y-auto px-4 space-y-1.5 custom-scrollbar">
+          {isDbLoading ? (
+             <div className="py-10 text-center space-y-3">
+                <div className="w-6 h-6 border-2 border-brand/30 border-t-brand rounded-full animate-spin mx-auto"></div>
+                <p className="text-[10px] text-slate-500">클라우드 동기화 중...</p>
+             </div>
+          ) : categories.map(cat => (
+            <div key={cat.id} onClick={() => { setSelectedCategoryId(cat.id); setIsMobileMenuOpen(false); }}
+              className={`group flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition-all duration-300 ${selectedCategoryId === cat.id ? 'bg-brand text-white shadow-xl shadow-brand/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <div className="flex items-center space-x-3 overflow-hidden">
+                <FolderIcon className={`w-4 h-4 ${selectedCategoryId === cat.id ? 'text-white' : 'text-slate-600'}`} />
+                <span className="text-sm font-bold truncate">{cat.name}</span>
+              </div>
+              <button onClick={(e) => handleDeleteCategory(cat.id, e)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/10 rounded transition-opacity">
+                <TrashIcon className="w-3.5 h-3.5" />
+              </button>
             </div>
           ))}
         </div>
 
-        <div className="p-4 border-t border-slate-800 bg-slate-900/50">
-          <div className="mb-4 pb-4 border-b border-slate-800 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
-             {EXTERNAL_LINKS.map((link) => (
-                <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center justify-center space-x-2 w-full p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-brand hover:text-brand-dark transition-all border border-slate-700 hover:border-brand/30 shadow-sm group">
-                  <span className="font-semibold text-sm">{link.name}</span>
-                  <ExternalLinkIcon className="w-4 h-4 opacity-70 group-hover:opacity-100" />
-                </a>
-             ))}
-          </div>
+        <div className="p-5 border-t border-slate-800 bg-slate-900/40">
+           <form onSubmit={handleAddCategory} className="flex space-x-2 mb-4">
+              <input type="text" placeholder="새 카테고리" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}
+                className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-brand" />
+              <button type="submit" className="p-2 bg-brand text-white rounded-lg"><PlusIcon className="w-4 h-4" /></button>
+           </form>
 
-          <div className="grid grid-cols-2 gap-2 mb-4">
-             <button onClick={exportData} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 py-1.5 rounded-md transition-colors border border-slate-700">백업하기</button>
-             <button onClick={() => fileInputRef.current?.click()} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 py-1.5 rounded-md transition-colors border border-slate-700">복원하기</button>
-             <input type="file" ref={fileInputRef} onChange={importData} accept=".json" className="hidden" />
-          </div>
-
-          <form onSubmit={handleAddCategory} className="flex space-x-2 mb-4">
-            <input type="text" placeholder="새 카테고리" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)}
-              className="flex-1 bg-slate-800 text-slate-200 text-sm px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-brand/50 border border-slate-700 placeholder-slate-600" />
-            <button type="submit" disabled={!newCategoryName.trim()} className="bg-brand hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed text-white p-2 rounded-lg transition-colors shadow-lg shadow-brand/20">
-              <PlusIcon className="w-5 h-5" />
-            </button>
-          </form>
-
-          <div className="flex items-center justify-between bg-slate-800 p-3 rounded-lg border border-slate-700">
-            <div className="flex items-center space-x-2 overflow-hidden">
-               <div className="bg-brand/20 p-1.5 rounded-full text-brand"><UserIcon className="w-4 h-4" /></div>
-               <div className="text-sm text-slate-300 truncate font-medium">{currentUser.email.split('@')[0]}</div>
-            </div>
-            <button onClick={handleLogout} className="text-slate-500 hover:text-red-400 transition-colors p-1.5 hover:bg-red-500/10 rounded-md" title="로그아웃">
-              <LogOutIcon className="w-4 h-4" />
-            </button>
-          </div>
+           <div className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800">
+             <div className="flex items-center space-x-3 overflow-hidden">
+               <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-brand font-black">
+                 {currentUser.email[0].toUpperCase()}
+               </div>
+               <div className="flex flex-col truncate">
+                 <span className="text-xs font-bold text-white truncate">{currentUser.email.split('@')[0]}</span>
+                 <div className="flex items-center space-x-1">
+                   {isSyncing ? (
+                      <span className="text-[9px] text-brand animate-pulse">Syncing...</span>
+                   ) : (
+                      <span className="text-[9px] text-slate-500">Cloud Synced</span>
+                   )}
+                 </div>
+               </div>
+             </div>
+             <button onClick={handleLogout} className="p-2 text-slate-600 hover:text-red-400 transition-all"><LogOutIcon className="w-4 h-4" /></button>
+           </div>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col bg-slate-900 overflow-hidden relative">
-        <header className="px-4 md:px-8 py-6 border-b border-slate-800 bg-slate-900 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col bg-slate-900 overflow-hidden">
+        <header className="px-6 md:px-10 py-8 flex items-center justify-between gap-4">
           <div className="flex items-center">
-            <button className="mr-3 md:hidden p-2 -ml-2 text-slate-400 hover:text-white rounded-lg" onClick={() => setIsMobileMenuOpen(true)}>
+            <button className="md:hidden mr-4 p-2 bg-slate-800 rounded-lg" onClick={() => setIsMobileMenuOpen(true)}>
               <MenuIcon className="w-6 h-6" />
             </button>
-            <h2 className="text-2xl md:text-3xl font-bold text-white truncate">
-              {activeCategory ? activeCategory.name : '멘트 보관함'}
-            </h2>
+            <h2 className="text-2xl md:text-3xl font-black text-white">{activeCategory?.name || '멘트 관리'}</h2>
           </div>
 
-          <div className="flex items-center space-x-3 w-full md:w-auto">
-            {activeCategory && (
-              <div className="relative flex-1 md:w-64">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                  <SearchIcon className="w-4 h-4" />
-                </div>
-                <input type="text" placeholder="멘트 검색..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-10 py-2.5 text-sm text-white focus:ring-2 focus:ring-brand/50 outline-none transition-all" />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300">
-                    <XIcon className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            )}
-
-            {activeCategory && (
-              <button onClick={openAddSnippetModal}
-                className="flex-shrink-0 flex items-center space-x-2 bg-brand hover:bg-brand-dark text-white px-4 py-2.5 rounded-lg transition-all shadow-lg shadow-brand/30 hover:shadow-brand/50 font-medium text-sm">
-                <PlusIcon className="w-5 h-5" />
-                <span className="hidden sm:inline">추가</span>
-              </button>
-            )}
+          <div className="flex items-center space-x-4">
+            <div className="relative hidden md:block">
+              <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input type="text" placeholder="멘트 검색..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                className="bg-slate-800/50 border border-slate-700/50 rounded-2xl pl-12 pr-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-brand/40 outline-none w-64" />
+            </div>
+            <button onClick={() => { setEditingSnippet(null); setSnippetForm({label:'', content:''}); setIsSnippetModalOpen(true); }} className="px-6 py-2.5 bg-brand text-white rounded-xl shadow-lg shadow-brand/30 font-bold transform active:scale-95 transition-all">추가</button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-          {activeCategory ? (
-            filteredSnippets.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
-                {filteredSnippets.map(snippet => {
-                  const isExpanded = expandedSnippets.has(snippet.id);
-                  const isLongContent = snippet.content.length > 200 || snippet.content.split('\n').length > 5;
-                  return (
-                    <div key={snippet.id} className="group relative flex flex-col bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-brand/40 rounded-xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 overflow-hidden">
-                      <div className="px-5 py-3.5 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/30">
-                        <div className="flex items-center space-x-2 overflow-hidden">
-                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${['bg-pink-400', 'bg-cyan-400', 'bg-indigo-400', 'bg-amber-400'][snippet.label.length % 4]}`}></span>
-                          <span className="text-sm font-bold text-slate-200 truncate">{snippet.label}</span>
-                        </div>
-                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={(e) => handleDuplicateSnippet(snippet, e)} className="p-1.5 text-slate-400 hover:text-brand hover:bg-brand/10 rounded-md" title="복제"><CopyIcon className="w-4 h-4" /></button>
-                          <button onClick={(e) => openEditSnippetModal(snippet, e)} className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-md" title="수정"><EditIcon className="w-4 h-4" /></button>
-                          <button onClick={(e) => handleDeleteSnippet(snippet.id, e)} className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-md" title="삭제"><TrashIcon className="w-4 h-4" /></button>
-                        </div>
-                      </div>
-
-                      <div onClick={() => copyToClipboard(snippet.content)} className="p-5 flex-1 cursor-pointer flex flex-col group/content">
-                        <div className={`text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-normal ${isExpanded ? '' : 'line-clamp-6'}`}>
-                          {snippet.content}
-                        </div>
-                        {isLongContent && (
-                          <button onClick={(e) => toggleSnippetExpansion(snippet.id, e)} className="mt-2 text-brand text-xs font-semibold hover:underline w-fit">
-                            {isExpanded ? '접기' : '더보기...'}
-                          </button>
-                        )}
-                        <div className="mt-4 flex items-center text-brand text-[10px] font-bold tracking-widest uppercase opacity-0 group-hover/content:opacity-100 transition-opacity">
-                          <CopyIcon className="w-3 h-3 mr-1" /> Click to copy
-                        </div>
-                      </div>
+        <div className="flex-1 overflow-y-auto px-6 md:px-10 pb-10 custom-scrollbar">
+          {filteredSnippets.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {filteredSnippets.map(snip => (
+                <div key={snip.id} className="group relative bg-slate-800/40 hover:bg-slate-800 border border-slate-700/50 hover:border-brand/30 rounded-3xl p-6 transition-all duration-500">
+                  <div className="flex justify-between items-start mb-4">
+                    <span className="text-sm font-black text-slate-300">{snip.label}</span>
+                    <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => { setEditingSnippet(snip); setSnippetForm({label:snip.label, content:snip.content}); setIsSnippetModalOpen(true); }} className="p-1.5 hover:text-brand"><EditIcon className="w-4 h-4" /></button>
+                      <button onClick={() => handleDeleteSnippet(snip.id)} className="p-1.5 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-slate-500 py-20">
-                <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                  {searchQuery ? <SearchIcon className="w-10 h-10 text-slate-600" /> : <PlusIcon className="w-10 h-10 text-slate-600" />}
+                  </div>
+                  <div onClick={() => copyToClipboard(snip.content)} className="cursor-pointer">
+                    <p className="text-slate-400 text-sm leading-relaxed line-clamp-4 mb-4">{snip.content}</p>
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-700/30">
+                       <span className="text-[10px] font-black text-brand uppercase">Click to copy</span>
+                       <CopyIcon className="w-4 h-4 text-brand" />
+                    </div>
+                  </div>
                 </div>
-                <p className="text-xl font-medium text-slate-400">{searchQuery ? '검색 결과가 없습니다' : '등록된 멘트가 없습니다'}</p>
-                <p className="text-sm mt-2 font-light">{searchQuery ? '다른 검색어를 입력해보세요.' : '첫 번째 멘트를 추가하여 시작해보세요!'}</p>
-              </div>
-            )
+              ))}
+            </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-slate-500 text-center px-4">
-               <FolderIcon className="w-16 h-16 mb-4 opacity-20" />
-               <p className="text-lg font-medium">선택된 카테고리가 없습니다</p>
-               <p className="text-sm mt-1 font-light">카테고리를 선택하거나 새로 만들어보세요.</p>
+            <div className="h-full flex flex-col items-center justify-center opacity-30">
+               <DatabaseIcon className="w-20 h-20 mb-4" />
+               <p className="text-xl font-bold">비어있음</p>
             </div>
           )}
         </div>
       </main>
 
       <Modal isOpen={isSnippetModalOpen} onClose={() => setIsSnippetModalOpen(false)} title={editingSnippet ? '멘트 수정' : '새 멘트 추가'}>
-        <div className="space-y-5">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">구분 (Label)</label>
-            <input type="text" value={snippetForm.label} onChange={(e) => setSnippetForm({...snippetForm, label: e.target.value})} placeholder="예: 입금 계좌안내, 첫 인사"
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-brand/50 focus:border-brand outline-none transition-all placeholder-slate-600" />
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">Label</label>
+            <input type="text" value={snippetForm.label} onChange={e => setSnippetForm({...snippetForm, label: e.target.value})} placeholder="예: 첫 인사"
+              className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-brand outline-none" />
           </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">내용 (Content)</label>
-            <textarea value={snippetForm.content} onChange={(e) => setSnippetForm({...snippetForm, content: e.target.value})} placeholder="고객에게 전송할 메시지 내용을 입력하세요..." rows={8}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-brand/50 focus:border-brand outline-none transition-all placeholder-slate-600 resize-none leading-relaxed" />
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">Content</label>
+            <textarea value={snippetForm.content} onChange={e => setSnippetForm({...snippetForm, content: e.target.value})} placeholder="메시지 내용..." rows={6}
+              className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-brand outline-none resize-none" />
           </div>
-          <div className="pt-4 flex justify-end space-x-3">
-            <button onClick={() => setIsSnippetModalOpen(false)} className="px-5 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">취소</button>
-            <button onClick={handleSnippetSave} className="px-8 py-2.5 rounded-lg bg-brand hover:bg-brand-dark text-white font-bold shadow-lg shadow-brand/40 transition-all transform active:scale-95">저장하기</button>
+          <div className="flex justify-end space-x-4 pt-4">
+            <button onClick={() => setIsSnippetModalOpen(false)} className="px-8 font-bold text-slate-500">취소</button>
+            <button onClick={handleSnippetSave} className="px-12 py-4 bg-brand text-white font-black rounded-2xl shadow-xl shadow-brand/30">저장</button>
           </div>
         </div>
       </Modal>
