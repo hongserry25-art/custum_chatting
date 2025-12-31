@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Category, Snippet, ToastState, User } from './types';
 import { CopyIcon, EditIcon, TrashIcon, PlusIcon, FolderIcon, CheckIcon, UserIcon, LogOutIcon, MenuIcon, ExternalLinkIcon, SearchIcon, XIcon } from './components/Icons';
@@ -68,6 +67,9 @@ const App: React.FC = () => {
   // Toast State
   const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'info' });
 
+  // Refs
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // --- Helper: Dynamic Keys ---
   const getCategoriesKey = (email: string) => `chat_helper_categories_${email}`;
   const getSnippetsKey = (email: string) => `chat_helper_snippets_${email}`;
@@ -78,8 +80,6 @@ const App: React.FC = () => {
   };
 
   // --- Effects ---
-
-  // 1. Initial Load: Check if user is logged in
   useEffect(() => {
     const savedUser = localStorage.getItem(STORAGE_KEY_CURRENT_USER);
     if (savedUser) {
@@ -87,7 +87,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // 2. Load Data when User Changes
   useEffect(() => {
     if (!currentUser) {
       setCategories([]);
@@ -119,7 +118,6 @@ const App: React.FC = () => {
     }
   }, [currentUser]);
 
-  // 3. Save Data Changes
   useEffect(() => {
     if (currentUser && categories.length > 0) {
       localStorage.setItem(getCategoriesKey(currentUser.email), JSON.stringify(categories));
@@ -132,7 +130,6 @@ const App: React.FC = () => {
     }
   }, [snippets, currentUser]);
 
-  // Toast Timer
   useEffect(() => {
     if (toast.show) {
       const timer = setTimeout(() => {
@@ -265,6 +262,50 @@ const App: React.FC = () => {
     setExpandedSnippets(newSet);
   };
 
+  // --- Backup & Restore ---
+  const exportData = () => {
+    const data = {
+      categories,
+      snippets,
+      exportDate: new Date().toISOString(),
+      user: currentUser?.email
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `chat-helper-backup-${new Date().toLocaleDateString()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast('데이터가 파일로 저장되었습니다.');
+  };
+
+  const importData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (json.categories && json.snippets) {
+          if (window.confirm('현재 데이터를 덮어쓰고 백업 데이터를 불러올까요?')) {
+            setCategories(json.categories);
+            setSnippets(json.snippets);
+            if (json.categories.length > 0) setSelectedCategoryId(json.categories[0].id);
+            showToast('데이터 복구가 완료되었습니다.');
+          }
+        } else {
+          showToast('올바른 백업 파일이 아닙니다.', 'error');
+        }
+      } catch (err) {
+        showToast('파일을 읽는 중 오류가 발생했습니다.', 'error');
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   if (!currentUser) {
     return (
       <>
@@ -328,7 +369,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="p-4 border-t border-slate-800 bg-slate-900/50">
-          <div className="mb-4 pb-4 border-b border-slate-800 space-y-2 max-h-56 overflow-y-auto custom-scrollbar">
+          <div className="mb-4 pb-4 border-b border-slate-800 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
              {EXTERNAL_LINKS.map((link) => (
                 <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
                   className="flex items-center justify-center space-x-2 w-full p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-brand hover:text-brand-dark transition-all border border-slate-700 hover:border-brand/30 shadow-sm group">
@@ -336,6 +377,12 @@ const App: React.FC = () => {
                   <ExternalLinkIcon className="w-4 h-4 opacity-70 group-hover:opacity-100" />
                 </a>
              ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-4">
+             <button onClick={exportData} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 py-1.5 rounded-md transition-colors border border-slate-700">백업하기</button>
+             <button onClick={() => fileInputRef.current?.click()} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 py-1.5 rounded-md transition-colors border border-slate-700">복원하기</button>
+             <input type="file" ref={fileInputRef} onChange={importData} accept=".json" className="hidden" />
           </div>
 
           <form onSubmit={handleAddCategory} className="flex space-x-2 mb-4">
@@ -370,7 +417,6 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-3 w-full md:w-auto">
-            {/* Search Bar */}
             {activeCategory && (
               <div className="relative flex-1 md:w-64">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
