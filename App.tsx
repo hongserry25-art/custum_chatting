@@ -14,6 +14,12 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+const EXTERNAL_LINKS = [
+  { name: '사주이론', url: 'https://care-book-one.vercel.app' },
+  { name: '포스텔러 만세력', url: 'https://pro.forceteller.com/profile/edit' },
+  { name: '사주비즈랩', url: 'https://www.sajulab.kr' },
+];
+
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -90,7 +96,6 @@ const App: React.FC = () => {
           if (snipError) throw snipError;
           setSnippets(snips || []);
         } else {
-          // 초기 카테고리 자동 생성
           const initialNames = ['초기안내', '상담진행', '입금안내', '마무리'];
           const { data: newCats, error: createError } = await supabase
             .from('categories')
@@ -267,28 +272,46 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 space-y-1.5 custom-scrollbar">
-          {isDbLoading ? (
-             <div className="py-10 text-center space-y-3">
-                <div className="w-6 h-6 border-2 border-brand/30 border-t-brand rounded-full animate-spin mx-auto"></div>
-                <p className="text-[10px] text-slate-500">데이터 로드 중...</p>
-             </div>
-          ) : categories.length > 0 ? categories.map(cat => (
-            <div key={cat.id} onClick={() => { setSelectedCategoryId(cat.id); setIsMobileMenuOpen(false); }}
-              className={`group flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition-all duration-300 ${selectedCategoryId === cat.id ? 'bg-brand text-white shadow-xl shadow-brand/20' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <div className="flex items-center space-x-3 overflow-hidden">
-                <FolderIcon className={`w-4 h-4 ${selectedCategoryId === cat.id ? 'text-white' : 'text-slate-600'}`} />
-                <span className="text-sm font-bold truncate">{cat.name}</span>
+        <div className="flex-1 overflow-y-auto px-4 space-y-6 custom-scrollbar pb-6">
+          {/* Categories Section */}
+          <div className="space-y-1.5">
+            <label className="px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest">Categories</label>
+            {isDbLoading ? (
+               <div className="py-10 text-center space-y-3">
+                  <div className="w-6 h-6 border-2 border-brand/30 border-t-brand rounded-full animate-spin mx-auto"></div>
+                  <p className="text-[10px] text-slate-500">데이터 로드 중...</p>
+               </div>
+            ) : categories.length > 0 ? categories.map(cat => (
+              <div key={cat.id} onClick={() => { setSelectedCategoryId(cat.id); setIsMobileMenuOpen(false); }}
+                className={`group flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition-all duration-300 ${selectedCategoryId === cat.id ? 'bg-brand text-white shadow-xl shadow-brand/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+                <div className="flex items-center space-x-3 overflow-hidden">
+                  <FolderIcon className={`w-4 h-4 ${selectedCategoryId === cat.id ? 'text-white' : 'text-slate-600'}`} />
+                  <span className="text-sm font-bold truncate">{cat.name}</span>
+                </div>
+                <button onClick={(e) => handleDeleteCategory(cat.id, e)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/10 rounded transition-opacity">
+                  <TrashIcon className="w-3.5 h-3.5" />
+                </button>
               </div>
-              <button onClick={(e) => handleDeleteCategory(cat.id, e)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/10 rounded transition-opacity">
-                <TrashIcon className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )) : (
-            <div className="p-4 text-center">
-              <p className="text-xs text-slate-600">SQL 테이블을 먼저 생성해주세요.</p>
-            </div>
-          )}
+            )) : (
+              <div className="p-4 text-center">
+                <p className="text-xs text-slate-600">SQL 테이블을 먼저 생성해주세요.</p>
+              </div>
+            )}
+          </div>
+
+          {/* External Links Section */}
+          <div className="space-y-1.5 pt-4 border-t border-slate-900">
+            <label className="px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest">Quick Links</label>
+            {EXTERNAL_LINKS.map(link => (
+              <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
+                 className="flex items-center justify-between p-3.5 rounded-xl text-slate-500 hover:bg-slate-800 hover:text-slate-200 transition-all duration-300 group">
+                <div className="flex items-center space-x-3">
+                  <ExternalLinkIcon className="w-4 h-4 text-slate-700 group-hover:text-brand transition-colors" />
+                  <span className="text-sm font-bold">{link.name}</span>
+                </div>
+              </a>
+            ))}
+          </div>
         </div>
 
         <div className="p-5 border-t border-slate-800 bg-slate-900/40">
